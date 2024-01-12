@@ -1,0 +1,239 @@
+---
+title: CVI and EMPOWER in North Carolina
+author: Jeanny Wang
+date: 12-01-2024
+format:  
+    html:
+        code-overflow: wrap
+        code-tools: true
+jupyter: python3
+---
+
+
+```{python}
+#Loading the data 
+
+import pandas as pd
+import numpy as np
+from siuba import * 
+# from plotnine import *  #ggplot
+import os
+import sys
+
+# https://empowerprogram.hhs.gov/about-empowermap.html
+# loading in county data for 2019 through 2021 for empower 
+empower2018_county=pd.read_excel("./dat/2018_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2019_county=pd.read_excel("./dat/2019_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County") 
+empower2020_county=pd.read_excel("./dat/2020_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2021_county=pd.read_excel("./dat/2021_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2022_county=pd.read_excel("./dat/2022_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower_nc = empower2022_county>>filter(_, _.State.str.contains("NC"))
+
+# TOX PI SCORES 
+# https://github.com/ToxPi/toxpiR/tree/main
+# https://github.com/wachiuphd/CVI
+# Getting the baseline combined 
+cvi_bl= pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb-baseline.csv")
+cvi_bl.columns= cvi_bl.columns.str.replace('[. ]', "_", regex=True)
+cvi_blnc=(cvi_bl>>filter(_.Name.str.contains("NC"))
+>>rename(CVI_baseline_score=_.ToxPi_Score))
+
+# Getting Climate combined 
+cvi_cc= pd.read_csv( "./CVI/CVI-county-pct/CVI-county-pct-comb-climate.csv")
+cvi_cc.columns= cvi_cc.columns.str.replace('[. ]', '_', regex=True)
+cvi_ccnc = (cvi_cc>>filter(_.Name.str.contains("NC"))
+>>rename(CVI_CC_score=_.ToxPi_Score))
+# CVI for just the extreme events 
+cvi_extreme_events=pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-cat-CC-Extreme Events.csv")
+cvi_extreme_events.columns= cvi_extreme_events.columns.str.replace('[. ]', '_', regex=True)
+cvi_nc_ee = (cvi_extreme_events>>filter(_.Name.str.contains("NC")))
+cvi_nc_ee = (cvi_nc_ee >> rename( 
+                                CC_EE_Score=_.ToxPi_Score,
+                                CC_EE_Temperature=_.Temperature,
+                                CC_EE_Droughts=_.Droughts,
+                                CC_EE_Wildfires=_.Wildfires,
+                                CC_EE_Precipitation=_.Precipitation,
+                                CC_EE_Flooding=_.Flooding,
+                                CC_EE_Storms=_.Storms))
+print(cvi_nc_ee.columns)
+# Overall CVI for everything combined 
+cvi_all = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb.csv")
+cvi_all.columns= cvi_all.columns.str.replace('[. ]', '_', regex=True)
+cvi_allnc = (cvi_all>>filter(_.Name.str.contains("NC")) 
+            >>rename(CVI_overall_score=_.ToxPi_Score))
+
+```
+
+
+```{python}
+# Merging datasets into one for analysis 
+nc_2022=(empower2022_county
+        >>filter(_.State.str.contains("NC"))
+        >>left_join(_, cvi_allnc,{"FIPS_Code":"FIPS"} )
+        >>left_join(_, cvi_blnc[['FIPS', 'CVI_baseline_score']],on="FIPS" )
+        >>left_join(_, cvi_ccnc[['FIPS', 'CVI_CC_score']],on="FIPS" )
+        >>left_join(_, cvi_nc_ee[['FIPS', 'CC_EE_Score', 'CC_EE_Temperature', 'CC_EE_Droughts', 'CC_EE_Wildfires', 'CC_EE_Precipitation', 'CC_EE_Flooding', 'CC_EE_Storms']],on="FIPS")
+        )
+print(nc_2022.shape)
+nc_2022.head()
+nc_2022.dtypes
+# Creating new columns for the average accross 12 months for the number of Medicare Beneficiaries and the number of Medicare Beneficiaries with DME
+nc_2022=(empower2022_county
+        >>filter(_.State.str.contains("NC"))
+        >>left_join(_, cvi_allnc,{"FIPS_Code":"FIPS"} )
+        >>left_join(_, cvi_blnc[['FIPS', 'CVI_baseline_score']],on="FIPS" )
+        >>left_join(_, cvi_ccnc[['FIPS', 'CVI_CC_score']],on="FIPS" )
+        >>left_join(_, cvi_nc_ee[['FIPS', 'CC_EE_Score', 'CC_EE_Temperature', 'CC_EE_Droughts', 'CC_EE_Wildfires', 'CC_EE_Precipitation', 'CC_EE_Flooding', 'CC_EE_Storms']],on="FIPS")
+        >>mutate(Medicare_Benes_2022=_.filter(regex='Medicare_Benes$', axis=1).mean(axis=1), 
+                Medicare_Benes_DME=_.filter(regex='Power_Dependent_Devices_DME$', axis=1).mean(axis=1), 
+                Medicare_DME_per100=100*_.Medicare_Benes_DME/_.Medicare_Benes_2022)
+        )
+
+print(head(nc_2022))
+```
+
+
+```{python}
+from siuba.dply.vector import cummean
+# from siuba.dply.vector import filter
+
+tmpbenes=(nc_2022>>select(_.contains("Medicare_Benes")))
+
+(nc_2022
+    >> mutate(Medicare_Benes_2022=_[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1))
+)
+# (nc_2022
+#     >> mutate(Medicare_Benes_2022=_.mean(axis=1))
+# )
+# (nc_2022
+#     >> mutate(Medicare_Benes_2022=_.January_2022_Medicare_Benes.mean(axis=0))
+# )
+
+# Select columns ending with "Medicare_Benes"
+medicare_benes_cols = nc_2022.columns[nc_2022.columns.str.endswith("Medicare_Benes")]
+
+# Calculate the mean of the selected columns for each row
+nc_2022["Medicare_Benes_2022"] = nc_2022 >>select(_.contains("Medicare_Benes")) >> _.mean(axis=1)
+from siuba import mutate
+
+tmpbenes=(nc_2022>>select(_.contains("Medicare_Benes")))
+
+(nc_2022
+    >> mutate(Medicare_Benes_2022=_[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1))
+)
+# (nc_2022
+#     >> mutate(Medicare_Benes_2022=_.mean(axis=1))
+# )
+(nc_2022
+    >> mutate(Medicare_Benes_2022=_.January_2022_Medicare_Benes.mean(axis=0))
+)
+
+# Select columns ending with "Medicare_Benes"
+medicare_benes_cols = nc_2022.columns[nc_2022.columns.str.endswith("Medicare_Benes")]
+
+# Calculate the mean of the selected columns for each row
+nc_2022["Medicare_Benes_2022"] = nc_2022 >>select(_.contains("Medicare_Benes")) >> _.mean(axis=1)
+
+nc_2022 = nc_2022 >> mutate(Medicare_Benes_2022 = _.filter(like="Medicare_Benes", axis=1).mean(axis=1))
+nc_2022.filter(regex='Medicare_Benes$', axis=1)
+
+
+# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
+
+# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
+# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
+
+```
+
+```{python}
+# DRAFT LEFT JOIN CODE  
+# empower_nc.columns
+
+nc2022_ee=cvi_nc_ee>>left_join(_, empower_nc, {"FIPS":"FIPS_Code"})
+nc2022_ee.describe()
+nc2022_ee.set_index('FIPS_Code', inplace=True)
+nc2022_ee.columns
+# tmp = nc2022_ee>>mutate(county= _.Name.str.split(expand=True)[1])
+
+nc2022_ee.Name.str.split(expand=True)
+
+# Getting the attributes and methods associated with nc2022_ee
+print([m for m in dir(nc2022_ee) if not m.startswith("__")])
+# print(dir(nc2022_ee)) 
+
+
+# Sorting data by CVI score 
+# Sorting data by CVI score 
+# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Temperature)>>_.head(10)
+# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Flooding)>>_.head(10)
+# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Storms)>>_.head(10)
+# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Precipitation)>>_.head(10)
+# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.January_2022_Medicare_Benes)>>_.head(10)
+# (nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Temperature)>>_.head(10)).to_csv("top10_temp.csv")
+
+# (nc2022_ee
+#     >> mutate(January_DME_proportion=_.January_2022_Power_Dependent_Devices_DME/_.January_2022_Medicare_Benes)
+#     >> select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes, _.January_2022_Power_Dependent_Devices_DME, _.January_DME_proportion)
+#     #>> filter(_.County.str.contains("Robeson"))
+#     >> arrange(-_.January_DME_proportion)
+#     >> _.head(10)
+# )
+```
+
+```{python}
+# Getting the baseline combined 
+cvi_bl= pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb-baseline.csv")
+cvi_bl.columns= cvi_bl.columns.str.replace('[. ]', "_", regex=True)
+cvi_bl.columns
+cvi_blnc=cvi_bl>>filter(_.Name.str.contains("NC"))
+(cvi_blnc>>arrange(-_.ToxPi_Score))>>_.head(10)
+(cvi_blnc>>arrange(-_.Baseline_SocialEconomic))>>_.head(10)
+(cvi_blnc>>arrange(-_.Baseline_Health))>>_.head(10)
+(cvi_blnc>>arrange(-_.Baseline_Infrastructure))>>_.head(10)
+(cvi_blnc>>arrange(-_.Baseline_Environment))>>_.head(10)
+cvi_blnc=(cvi_bl>>filter(_.Name.str.contains("NC"))
+>>rename(CVI_baseline_score=_.ToxPi_Score))
+cvi_blnc.columns
+cvi_blnc.describe()
+```
+
+```{python}
+# Getting Climate combined 
+cvi_cc= pd.read_csv( "./CVI/CVI-county-pct/CVI-county-pct-comb-climate.csv")
+cvi_cc.columns= cvi_cc.columns.str.replace('[. ]', '_', regex=True)
+cvi_ccnc = cvi_cc>>filter(_.Name.str.contains("NC"))
+(cvi_ccnc>>arrange(-_.ClimateChange_ExtremeEvents))>>_.head(10)
+(cvi_ccnc>>arrange(-_.ToxPi_Score))>>_.head(10)
+# (cvi_ccnc>>arrange(-_.ToxPi_Score)
+#     >>filter(_.Name.str.contains("Robeson")))
+
+cvi_ccnc = (cvi_cc>>filter(_.Name.str.contains("NC"))
+>>rename(CVI_climate_score=_.ToxPi_Score))
+
+cvi_ccnc.columns
+cvi_ccnc.head()
+```
+
+```{python} 
+cvi_all = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb.csv")
+dir(cvi_all)
+cvi_all.columns= cvi_all.columns.str.replace('[. ]', '_', regex=True)
+dir(cvi_all)
+cvi_allnc = cvi_all>>filter(_.Name.str.contains("NC"))
+cvi_allnc>>arrange(-_.Baseline_Infrastructure, -_.Baseline_Health)>>_.head(10)
+cvi_allnc>>arrange(-_.ClimateChange_Health)>>_.head(10)
+cvi_allnc>>arrange(-_.ClimateChange_SocialEconomic)>>_.head(10)
+cvi_allnc>>arrange(-_.ToxPi_Score)>>_.head(10)
+
+cvi_allnc = (cvi_all>>filter(_.Name.str.contains("NC")) 
+            >>rename(CVI_overall_score=_.ToxPi_Score))
+cvi_allnc.columns
+
+```
+
+```{python}
+0.2969916+  0.7422759+            0.6314711+            0.8042630             +       0.5342240 +0.5295359            +   0.4560483
+3.9948097999999996/7
+
+(0.4225221-0.2915693) /(0.7325002-0.2915693)
+```
