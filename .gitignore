@@ -1,0 +1,16 @@
+.vscode
+abstract_files
+CVI/*
+!CVI/CVI-county-pct/
+*.gis.csv
+doc
+out
+prog
+test
+writing
+code-workspace
+*.ipynb
+*.html
+*.pdf
+*.docx
+place_health.code-workspace
