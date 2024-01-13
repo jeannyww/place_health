@@ -10,7 +10,7 @@ format:
 jupyter: python3
 ---
 
-## Cleaning data for analysis  
+## Cleaning data for analysis  ✨
 ```{python}
 #Loading the data 
 
@@ -80,6 +80,7 @@ cvi_inds=pd.read_csv("./CVI/CVI-county-pct/CVI-county_data_pct.csv")
 cvi_inds.columns= cvi_inds.columns.str.replace('[. ]', '', regex=True)
 cvi_inds.columns= cvi_inds.columns.str.replace('[()-,%-]', '', regex=True)
 print(cvi_inds.columns)
+
 # Creating new columns for the average accross 12 months for the number of Medicare Beneficiaries and the number of Medicare Beneficiaries with DME
 nc_2022=(empower2022_county
         >>filter(_.State.str.contains("NC"))
@@ -92,7 +93,8 @@ nc_2022=(empower2022_county
                 Medicare_DME_per100=100*_.Medicare_Benes_DME/_.Medicare_Benes_2022)
         >>left_join(_, cvi_inds, on="FIPS")
         )
-
+for col in nc_2022.columns:
+    print(col)
 
 print(head(nc_2022))
 
@@ -129,10 +131,10 @@ topn(nc_2022, 10, "ClimateChange_SocialEconomic")
 topn(nc_2022, 10, "ClimateChange_ExtremeEvents")
 
 topn(nc_2022, 10, "Medicare_DME_per100")
-topn(nc_2022, 10, "Residential_Energy_Expenditures_(%_change)")
+topn(nc_2022, 10, "ResidentialEnergyExpenditureschange")
 
 ```
-
+## Running Rank Correlations
 ```{python}
 
 # Libraries
@@ -140,6 +142,7 @@ import numpy as np
 import scipy.stats
 
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['ResidentialEnergyExpenditureschange'], nc_2022['Medicare_DME_per100'])
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_Health'])
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_SocialEconomic'])
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_Infrastructure'])
@@ -147,6 +150,23 @@ scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Low_Income'])
 
 
 ```
+
+## Printing out top 10 county and associated variables/indicators
+
+```{python}
+
+(nc_2022
+>>arrange(-_.CVI_overall_score)
+>>head(10)
+>>select(_.County, _.CVI_overall_score, _.Medicare_DME_per100, _.ResidentialEnergyExpenditureschange, _.Baseline_Health, _.Baseline_SocialEconomic, _.Baseline_Infrastructure, _.LowIncome)
+)
+(nc_2022
+>>arrange(_.CVI_overall_score)
+>>head(10)
+>>select(_.County, _.CVI_overall_score, _.Medicare_DME_per100, _.ResidentialEnergyExpenditureschange, _.Baseline_Health, _.Baseline_SocialEconomic, _.Baseline_Infrastructure, _.LowIncome)
+)
+```
+## Temp and scraps--testing code and dummy codes 
 
 ```{python}
 
@@ -259,9 +279,253 @@ top10(nc_2022, "Medicare_DME_per100", 10)
 
 ```
 
+
 ```{python}
 
 ```
 ```{python}
 
 ```
+
+### List of Variables 
+FIPS_Code
+County_FIPS_Code
+County
+State_FIPS_Code
+State
+January_2022_Medicare_Benes
+January_2022_Power_Dependent_Devices_DME
+February_2022_Medicare_Benes
+February_2022_Power_Dependent_Devices_DME
+March_2022_Medicare_Benes
+March_2022_Power_Dependent_Devices_DME
+April_2022_Medicare_Benes
+April_2022_Power_Dependent_Devices_DME
+May_2022_Medicare_Benes
+May_2022_Power_Dependent_Devices_DME
+June_2022_Medicare_Benes
+June_2022_Power_Dependent_Devices_DME
+July_2022_Medicare_Benes
+July_2022_Power_Dependent_Devices_DME
+August_2022_Medicare_Benes
+August_2022_Power_Dependent_Devices_DME
+September_2022_Medicare_Benes
+September_2022_Power_Dependent_Devices_DME
+October_2022_Medicare_Benes
+October_2022_Power_Dependent_Devices_DME
+November_2022_Medicare_Benes
+November_2022_Power_Dependent_Devices_DME
+December_2022_Medicare_Benes
+December_2022_Power_Dependent_Devices_DME
+row#_x
+Name_x
+FIPS
+Source_x
+CVI_overall_score
+Baseline_Health
+Baseline_SocialEconomic
+Baseline_Infrastructure
+Baseline_Environment
+ClimateChange_Health
+ClimateChange_SocialEconomic
+ClimateChange_ExtremeEvents
+CVI_baseline_score
+CVI_CC_score
+CC_EE_Score
+CC_EE_Temperature
+CC_EE_Droughts
+CC_EE_Wildfires
+CC_EE_Precipitation
+CC_EE_Flooding
+CC_EE_Storms
+Medicare_Benes_2022
+Medicare_Benes_DME
+Medicare_DME_per100
+row#_y
+Name_y
+Source_y
+LifeExpectancy
+SelfReportedPhysicalHealth
+SelfReportedMentalHealth
+DrugOverdoseDeathsper100000People
+AlcoholAbuse
+SuicideRates
+CurrentDiabetes
+CurrentAdultAsthma
+Stroke
+COPD
+CHD
+Cancer
+HighBloodPressure
+CholesterolScreening
+RoutineDoctorVisit
+Colonoscopy
+Mammogram
+OlderMenPreventiveScreening
+OlderWomenPreventiveScreening
+DentalExams
+COVID19Deaths
+HepatitisA
+HepatitisB
+HIV
+Chlamydia
+Gonorrhea
+Syphilis
+InfantMortality
+Lowbirthweight
+Pretermbirth
+ChildhoodAsthma
+Teenbirths
+ADHDPrevalence
+ADHDTreatment
+ChildMortality
+FreeorReducedPriceSchoolLunch
+ProximitytoNursingHomes
+NumberofHospitalBedsper10000people
+Covid19VaccinationRates
+MedicallyUnderservedAreas
+CurrentLackofHealthInsurance
+Proximitytohospitals
+BelowPoverty
+Unemployed
+LowIncome
+NoHighSchoolDiploma
+HomicideRate
+GunViolence
+ReligiousOrganizations
+CivicandSocialOrganizations
+Aged65orOlder
+Aged17orYounger
+CivilianwithaDisability
+SingleParentHouseholds
+FosterChildren
+Minority
+SpeaksEnglishLessthanWell
+UndocumentedPopulation
+HateCrimes
+PrisonPopulation
+Redlining
+HomelessPopulation
+VeteransPopulation
+MultiUnitStructures
+MobileHomes
+Crowding
+NoVehicle
+GroupQuarters
+HousingForeclosureRisk
+PercentofHousingUnitsBuiltBetween19401969asof20152019
+Delaycongestionpercapita/censustract
+Floodingrisktoroads
+Lanemilespercapita
+RoadQualityandMaintenance
+PublicTransitPerformance
+BridgeQualityandMaintenance
+Walkability
+Bikability
+ResidentialEnergyCostBurden
+Shareofenergyfromfossilfuels
+EVChargingStations
+ModifiedRetailFoodEnvironmentIndex
+FoodInsecurity
+AccesstoHealthyFoods
+IndoorPlumbing
+PercentofHouseholdwithnointernetaccess
+Percentofhouseholdwithsmartphonebutnootherdevice
+PercentofUnbankedHouseholds
+Paydaylendingrank
+HousingAffordabilityrenters
+HousingAffordabilityowners
+TaxBase:MedianRealEstateTaxesPaid
+VoterTurnout2020
+PublicLibraryLocations
+HUDPublicHousing
+AggregatefundingamountforHUDgrants
+Totalvehiclemilestraveledpercapita
+Passengervehiclemilestraveledpercapita
+Truckvehiclemilestraveledpercapita
+HeavyDutyVehiclevehiclemilestraveledpercapita
+ProximitytoPorts
+RailCrossings
+TrafficProximityandVolume
+NationalTransportationNoiseMap
+RiskScreeningEnvironmentalIndicatorsRSEI
+AirToxRespiratory
+AirToxNeurological
+AirToxLiver
+AirToxDevelopmental
+AirToxReproductive
+AirToxKidney
+AirToxImmunological
+AirToxThyroid
+AirToxTotalCancerRisk
+BlackCarbon
+Agriculturalpesticides
+LeadPaint:housingunitsbuiltbefore1960
+Leadindrinkingwaterviolations
+SuperfundSites
+Brownfields
+StreamToxicityRiskScreeningEnvironmentalIndicatorsRSEI
+Proximitytofacilitiesparticipatinginairmarkets
+NPLsites
+HazardousWasteManagementFacilitiesTSDFs
+HazardousWasteGenerator/Incinerators
+FacilitieswithEnforcementorViolation
+Landfills
+TSCAFacilities
+RiskManagementPlanFacilities
+ChemicalManufacturers
+MetalRecyclers
+ActiveOilandGasWells
+AnnualaveragePM25concentrations
+NO2concentration
+Ozoneconcentration
+ParksandGreenspace
+ImpermeableSurfaces
+ForestLandCover
+NativeAmericanLands
+Temperaturerelatedmortality
+Deathsfromclimatedisasters
+IncreasedPM25mortalityCVDages65
+IncreasedOzonemortalityallages
+Increaseinchildhoodasthmaincidence
+Aedesalbopictusdenguetransmissionincrease
+Aedesaegyptidenguetransmissionincrease
+Aedesaegyptizikatransmissionincrease
+FEMAHazardMitigationGrants
+Floodingrisktoproperties
+Wildfirerisktoproperties
+Propertytaxesexpectedtobelostby2045duetochronicinundation
+Costofclimatedisasters
+HighRiskJobsProductivityChange
+Yieldschange
+Outdoorworkersworkdaysatriskperyear
+ExpectedAnnualLossAgricultureValue
+ExpectedAnnualLossBuildingValue
+ExpectedAnnualLossPopulationEquivalence
+ResidentialEnergyExpenditureschange
+ShareofJobsinAgriculture
+Stateenergyrelatedcarbondioxideemissionsbyyear
+MethaneEmissions
+PropertyCrimeschange
+ViolentCrimeschange
+ColdWaveAnnualizedFrequency
+Dayswithmaximumtemperatureabove35C
+Dayswithmaximumtemperatureabove40C
+FrostDays
+Maximumofmaximumtemperatures
+Meantemperature
+UrbanHeatIslandExtremeHeatDays
+DroughtAnnualizedFrequency
+ConsecutiveDryDays
+WildfireAnnualizedFrequency
+SurfacePM25
+Snowfall
+StandardizedPrecipIndex
+TotalPrecipitation
+CoastalFloodingAnnualizedFrequency
+RiverineFloodingAnnualizedFrequency
+SeaLevelRise
+HurricaneAnnualizedFrequency
+TornadoAnnualizedFrequency
+WinterWeatherAnnualizedFrequency
+
