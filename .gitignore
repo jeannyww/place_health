@@ -8,10 +8,10 @@ out
 prog
 test
 writing
-code-workspace
+.ipynb_checkpoints/
 *.ipynb
+*cvi_abstract.ipynb
 *.html
 *.pdf
 *.docx
-*.ipynb
 place_health.code-workspace
