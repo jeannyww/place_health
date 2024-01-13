@@ -6,10 +6,11 @@ format:
     html:
         code-overflow: wrap
         code-tools: true
+        code-fold: true
 jupyter: python3
 ---
 
-
+## Cleaning data for analysis  
 ```{python}
 #Loading the data 
 
@@ -22,11 +23,11 @@ import sys
 
 # https://empowerprogram.hhs.gov/about-empowermap.html
 # loading in county data for 2019 through 2021 for empower 
-empower2018_county=pd.read_excel("./dat/2018_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
-empower2019_county=pd.read_excel("./dat/2019_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County") 
-empower2020_county=pd.read_excel("./dat/2020_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
-empower2021_county=pd.read_excel("./dat/2021_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
-empower2022_county=pd.read_excel("./dat/2022_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2018_county=pd.read_excel("./EMPOWERdat/2018_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2019_county=pd.read_excel("./EMPOWERdat/2019_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County") 
+empower2020_county=pd.read_excel("./EMPOWERdat/2020_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2021_county=pd.read_excel("./EMPOWERdat/2021_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
+empower2022_county=pd.read_excel("./EMPOWERdat/2022_HHSemPOWERMapHistoricalDataset.xlsx", sheet_name="County")
 empower_nc = empower2022_county>>filter(_, _.State.str.contains("NC"))
 
 # TOX PI SCORES 
@@ -48,24 +49,21 @@ cvi_extreme_events=pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-cat-CC-Extre
 cvi_extreme_events.columns= cvi_extreme_events.columns.str.replace('[. ]', '_', regex=True)
 cvi_nc_ee = (cvi_extreme_events>>filter(_.Name.str.contains("NC")))
 cvi_nc_ee = (cvi_nc_ee >> rename( 
-                                CC_EE_Score=_.ToxPi_Score,
-                                CC_EE_Temperature=_.Temperature,
-                                CC_EE_Droughts=_.Droughts,
-                                CC_EE_Wildfires=_.Wildfires,
-                                CC_EE_Precipitation=_.Precipitation,
-                                CC_EE_Flooding=_.Flooding,
-                                CC_EE_Storms=_.Storms))
+        CC_EE_Score=_.ToxPi_Score,
+        CC_EE_Temperature=_.Temperature,
+        CC_EE_Droughts=_.Droughts,
+        CC_EE_Wildfires=_.Wildfires,
+        CC_EE_Precipitation=_.Precipitation,
+        CC_EE_Flooding=_.Flooding,
+        CC_EE_Storms=_.Storms))
 print(cvi_nc_ee.columns)
+
 # Overall CVI for everything combined 
 cvi_all = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb.csv")
 cvi_all.columns= cvi_all.columns.str.replace('[. ]', '_', regex=True)
 cvi_allnc = (cvi_all>>filter(_.Name.str.contains("NC")) 
             >>rename(CVI_overall_score=_.ToxPi_Score))
 
-```
-
-
-```{python}
 # Merging datasets into one for analysis 
 nc_2022=(empower2022_county
         >>filter(_.State.str.contains("NC"))
@@ -77,6 +75,10 @@ nc_2022=(empower2022_county
 print(nc_2022.shape)
 nc_2022.head()
 nc_2022.dtypes
+# Loading in additional indicators
+cvi_inds=pd.read_csv("./CVI/CVI-county-pct/CVI-county_data_pct.csv")
+cvi_inds.columns= cvi_inds.columns.str.replace('[. ]', '_', regex=True)
+print(cvi_inds.columns)
 # Creating new columns for the average accross 12 months for the number of Medicare Beneficiaries and the number of Medicare Beneficiaries with DME
 nc_2022=(empower2022_county
         >>filter(_.State.str.contains("NC"))
@@ -87,153 +89,177 @@ nc_2022=(empower2022_county
         >>mutate(Medicare_Benes_2022=_.filter(regex='Medicare_Benes$', axis=1).mean(axis=1), 
                 Medicare_Benes_DME=_.filter(regex='Power_Dependent_Devices_DME$', axis=1).mean(axis=1), 
                 Medicare_DME_per100=100*_.Medicare_Benes_DME/_.Medicare_Benes_2022)
+        >>left_join(_, cvi_inds, on="FIPS")
         )
 
+
 print(head(nc_2022))
+
+for col in nc_2022.columns:
+    print(col)
+# Export nc_2022 to an Excel file
+nc_2022.to_excel("CVI_Empower_NC2022.xlsx", index=False)
+
+```
+## Data visualization and rudimentary analysis for ICPE abstract 
+```{python}
+# Libraries 
+from plotnine import *
+
+def topn(indat, n, colname):
+    indat=indat.sort_values(by=[colname], ascending=False).head(n)
+    p=(ggplot(indat, aes(x=f'reorder(County, -{colname})', y=colname))
+            + geom_bar(stat="identity")
+            + theme(axis_text_x=element_text(angle=45, hjust=1))
+            )
+    return(p)
+
+topn(nc_2022, 10, "CVI_overall_score")
+topn(nc_2022, 10, "Low_Income")
+topn(nc_2022, 10, "CVI_baseline_score")
+
+topn(nc_2022, 10, "Baseline_Health")
+topn(nc_2022, 10, "Baseline_SocialEconomic")
+topn(nc_2022, 10, "Baseline_Infrastructure")
+
+topn(nc_2022, 10, "CVI_CC_score")
+topn(nc_2022, 10, "ClimateChange_Health")
+topn(nc_2022, 10, "ClimateChange_SocialEconomic")
+topn(nc_2022, 10, "ClimateChange_ExtremeEvents")
+
+topn(nc_2022, 10, "Medicare_DME_per100")
+
 ```
 
+```{python}
+
+# Libraries
+import numpy as np
+import scipy.stats
+
+scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_Health'])
+scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_SocialEconomic'])
+scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_Infrastructure'])
+scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Low_Income'])
+
+
+```
 
 ```{python}
-from siuba.dply.vector import cummean
-# from siuba.dply.vector import filter
-
-tmpbenes=(nc_2022>>select(_.contains("Medicare_Benes")))
 
 (nc_2022
-    >> mutate(Medicare_Benes_2022=_[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1))
+>>ggplot(aes(x="CVI_overall_score", y="Medicare_DME_per100"))
++geom_point()
++labs(title="CVI and Medicare DME per 100 Medicare Beneficiaries in NC 2022", x="CVI Overall Score", y="Medicare DME per 100 Medicare Beneficiaries")
 )
-# (nc_2022
-#     >> mutate(Medicare_Benes_2022=_.mean(axis=1))
-# )
-# (nc_2022
-#     >> mutate(Medicare_Benes_2022=_.January_2022_Medicare_Benes.mean(axis=0))
-# )
-
-# Select columns ending with "Medicare_Benes"
-medicare_benes_cols = nc_2022.columns[nc_2022.columns.str.endswith("Medicare_Benes")]
-
-# Calculate the mean of the selected columns for each row
-nc_2022["Medicare_Benes_2022"] = nc_2022 >>select(_.contains("Medicare_Benes")) >> _.mean(axis=1)
-from siuba import mutate
-
-tmpbenes=(nc_2022>>select(_.contains("Medicare_Benes")))
 
 (nc_2022
-    >> mutate(Medicare_Benes_2022=_[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1))
+>>arrange(-_.Medicare_DME_per100) >> head(25)>>ggplot(aes(x="County", y="Medicare_DME_per100"))
++geom_bar(stat="identity")
 )
-# (nc_2022
-#     >> mutate(Medicare_Benes_2022=_.mean(axis=1))
-# )
+
 (nc_2022
-    >> mutate(Medicare_Benes_2022=_.January_2022_Medicare_Benes.mean(axis=0))
+>>arrange(-_.Medicare_DME_per100)  
+>>head(10)  // Select the top 10 rows
+>>ggplot(aes(x="County", y="Medicare_DME_per100"))
++geom_bar(stat="identity")
 )
 
-# Select columns ending with "Medicare_Benes"
-medicare_benes_cols = nc_2022.columns[nc_2022.columns.str.endswith("Medicare_Benes")]
-
-# Calculate the mean of the selected columns for each row
-nc_2022["Medicare_Benes_2022"] = nc_2022 >>select(_.contains("Medicare_Benes")) >> _.mean(axis=1)
-
-nc_2022 = nc_2022 >> mutate(Medicare_Benes_2022 = _.filter(like="Medicare_Benes", axis=1).mean(axis=1))
-nc_2022.filter(regex='Medicare_Benes$', axis=1)
-
-
-# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
-
-# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
-# nc_2022['Medicare_Benes_2022'] = nc_2022[['January_2022_Medicare_Benes', 'November_2022_Medicare_Benes', 'December_2022_Medicare_Benes']].mean(axis=1)
 
 ```
 
 ```{python}
-# DRAFT LEFT JOIN CODE  
-# empower_nc.columns
+from plotnine import *
+(nc_2022
+    >>arrange(-_.Medicare_DME_per100) 
+    >>head(25)
+    >>ggplot(aes(x='reorder(County, -Medicare_DME_per100)', y="Medicare_DME_per100"))
+        +geom_bar(stat="identity")
+        +theme(axis_text_x=element_text(angle=45, hjust=1))
+)
+(nc_2022
+    >>arrange(-_.CVI_overall_score) 
+    >>head(25)
+    >>ggplot(aes(x='reorder(County, -CVI_overall_score)', y="CVI_overall_score"))
+        +geom_bar(stat="identity")
+        +theme(axis_text_x=element_text(angle=45, hjust=1))
+)
 
-nc2022_ee=cvi_nc_ee>>left_join(_, empower_nc, {"FIPS":"FIPS_Code"})
-nc2022_ee.describe()
-nc2022_ee.set_index('FIPS_Code', inplace=True)
-nc2022_ee.columns
-# tmp = nc2022_ee>>mutate(county= _.Name.str.split(expand=True)[1])
 
-nc2022_ee.Name.str.split(expand=True)
+def top10(indat, colname, n):
+    return (indat
+            >> ggplot(aes(x=f'reorder(County, -{colname})', y=colname))
+            + geom_bar(stat="identity")
+            + theme(axis_text_x=element_text(angle=45, hjust=1))
+            )
 
-# Getting the attributes and methods associated with nc2022_ee
-print([m for m in dir(nc2022_ee) if not m.startswith("__")])
-# print(dir(nc2022_ee)) 
+top10(nc_2022, "CVI_overall_score", 10)
+
+def topn(indat, n, colname):
+    indat=indat.sort_values(by=[colname], ascending=False).head(n)
+    p=(ggplot(indat, aes(x=f'reorder(County, -{colname})', y=colname))
+            + geom_bar(stat="identity")
+            + theme(axis_text_x=element_text(angle=45, hjust=1))
+            )
+    return(p)
+
+topn(nc_2022, 10, "CVI_overall_score")
+topn(nc_2022, 10, "Medicare_DME_per100")
 
 
-# Sorting data by CVI score 
-# Sorting data by CVI score 
-# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Temperature)>>_.head(10)
-# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Flooding)>>_.head(10)
-# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Storms)>>_.head(10)
-# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Precipitation)>>_.head(10)
-# nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.January_2022_Medicare_Benes)>>_.head(10)
-# (nc2022_ee>>select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes)>>arrange(-_.Temperature)>>_.head(10)).to_csv("top10_temp.csv")
 
-# (nc2022_ee
-#     >> mutate(January_DME_proportion=_.January_2022_Power_Dependent_Devices_DME/_.January_2022_Medicare_Benes)
-#     >> select(_.County, _.FIPS, _.Temperature, _.Droughts, _.Wildfires, _.Precipitation, _.Flooding, _.Storms, _.January_2022_Medicare_Benes, _.January_2022_Power_Dependent_Devices_DME, _.January_DME_proportion)
-#     #>> filter(_.County.str.contains("Robeson"))
-#     >> arrange(-_.January_DME_proportion)
-#     >> _.head(10)
-# )
+
+nc_2022['Medicare_DME_per100'].describe()
+
+
+def top10(indat, colname, n):
+    return (indat
+                >>arrange({{colname}}) 
+                >>head(n)
+                >>ggplot(aes(x='reorder(County, -{{colname}})', y="{{colname}}"))
+                    +geom_bar(stat="identity")
+                    +theme(axis_text_x=element_text(angle=45, hjust=1)) 
+            )
+
+top10(nc_2022, _.Medicare_DME_per100, 10)
+
+
+    return (indat
+            >> arrange(order(_.{{colname}}))
+            >> head(n)
+            >> ggplot(aes(x="County", y=colname))
+            + geom_bar(stat="identity")
+            )
+def top10(indat, colname, n):
+    return (indat
+            >> arrange(order(-_.{{colname}}))
+            >> head(n)
+            >> ggplot(aes(x="County", y=colname))
+            + geom_bar(stat="identity")
+            )
+            
+    return (indat
+            >> arrange(order(_.{{colname}}))
+            >> head(n)
+            >> ggplot(aes(x="County", y=colname))
+            + geom_bar(stat="identity")
+            )
+
+top10(nc_2022, "Medicare_DME_per100", 10)
+
+    # return (indat
+    # top10(nc_2022, "Medicare_DME_per100", 10, desc)
+    # >>head(10)  // Select the top 10 rows
+    # >>ggplot(aes(x="County", y="Medicare_DME_per100"))
+    #     +geom_bar(stat="identity")
+    #     )
+
 ```
 
 ```{python}
-# Getting the baseline combined 
-cvi_bl= pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb-baseline.csv")
-cvi_bl.columns= cvi_bl.columns.str.replace('[. ]', "_", regex=True)
-cvi_bl.columns
-cvi_blnc=cvi_bl>>filter(_.Name.str.contains("NC"))
-(cvi_blnc>>arrange(-_.ToxPi_Score))>>_.head(10)
-(cvi_blnc>>arrange(-_.Baseline_SocialEconomic))>>_.head(10)
-(cvi_blnc>>arrange(-_.Baseline_Health))>>_.head(10)
-(cvi_blnc>>arrange(-_.Baseline_Infrastructure))>>_.head(10)
-(cvi_blnc>>arrange(-_.Baseline_Environment))>>_.head(10)
-cvi_blnc=(cvi_bl>>filter(_.Name.str.contains("NC"))
->>rename(CVI_baseline_score=_.ToxPi_Score))
-cvi_blnc.columns
-cvi_blnc.describe()
-```
 
+```
 ```{python}
-# Getting Climate combined 
-cvi_cc= pd.read_csv( "./CVI/CVI-county-pct/CVI-county-pct-comb-climate.csv")
-cvi_cc.columns= cvi_cc.columns.str.replace('[. ]', '_', regex=True)
-cvi_ccnc = cvi_cc>>filter(_.Name.str.contains("NC"))
-(cvi_ccnc>>arrange(-_.ClimateChange_ExtremeEvents))>>_.head(10)
-(cvi_ccnc>>arrange(-_.ToxPi_Score))>>_.head(10)
-# (cvi_ccnc>>arrange(-_.ToxPi_Score)
-#     >>filter(_.Name.str.contains("Robeson")))
 
-cvi_ccnc = (cvi_cc>>filter(_.Name.str.contains("NC"))
->>rename(CVI_climate_score=_.ToxPi_Score))
-
-cvi_ccnc.columns
-cvi_ccnc.head()
-```
-
-```{python} 
-cvi_all = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb.csv")
-dir(cvi_all)
-cvi_all.columns= cvi_all.columns.str.replace('[. ]', '_', regex=True)
-dir(cvi_all)
-cvi_allnc = cvi_all>>filter(_.Name.str.contains("NC"))
-cvi_allnc>>arrange(-_.Baseline_Infrastructure, -_.Baseline_Health)>>_.head(10)
-cvi_allnc>>arrange(-_.ClimateChange_Health)>>_.head(10)
-cvi_allnc>>arrange(-_.ClimateChange_SocialEconomic)>>_.head(10)
-cvi_allnc>>arrange(-_.ToxPi_Score)>>_.head(10)
-
-cvi_allnc = (cvi_all>>filter(_.Name.str.contains("NC")) 
-            >>rename(CVI_overall_score=_.ToxPi_Score))
-cvi_allnc.columns
-
-```
-
-```{python}
-0.2969916+  0.7422759+            0.6314711+            0.8042630             +       0.5342240 +0.5295359            +   0.4560483
-3.9948097999999996/7
-
-(0.4225221-0.2915693) /(0.7325002-0.2915693)
 ```
