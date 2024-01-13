@@ -13,4 +13,5 @@ code-workspace
 *.html
 *.pdf
 *.docx
+*ipynb
 place_health.code-workspace
