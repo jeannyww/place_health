@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+@author: nganle
+"""
+
+## Load & Clean Data
+import pandas as pd
+import numpy as np
+from siuba import * 
+import os
+import sys 
+
+cvi_cancer=pd.read_excel('./data_19Jan24.xlsx', sheet_name='CVI_Empower_Indicators (2)',na_values=["**","*"])
+
+for col in cvi_cancer.columns:
+    print(col)
+    
+print(head(cvi_cancer))
+
+    
+###Data Analysis + Graphs
+#Univariate Analysis
+
+from plotnine import *
+
+def topn(indat, n, colname):
+    indat=indat.sort_values(by=[colname], ascending=False).head(n)
+    p=(ggplot(indat, aes(x=f'reorder(County, -{colname})', y=colname))
+            +geom_bar(stat="identity")+theme(axis_text_x=element_text(angle=45, hjust=1)))
+    return(p)
+
+topn(cvi_cancer, 10, "CVI_overall_score")
+topn(cvi_cancer, 10, "CVI_CC_score")
+print(cvi_cancer['all_drate'].describe())
+
+#Bivariate Analysis
+
+#Spearman Correlation
+import scipy.stats
+def spman(col:str)->float:
+    return scipy.stats.spearmanr(cvi_cancer['CVI_overall_score'], cvi_cancer[col],nan_policy='omit')
+
+## CANCER MORTALITY FROM NCDHHS
+#Lung
+#spman(col='lung_death')
+spman(col='lung_drate')
+spman(col='lung_d_low')
+spman(col='lung_d_upp')
+
+#Breast
+#spman(col='breast_death')
+spman(col='breast_drate')
+#spman(col='breast_d_low')
+spman(col='breast_d_upp')
+
+#Prostate
+#spman(col='pros_death')
+spman(col='pros_drate')
+#spman(col='pros_d_low')
+spman(col='pros_d_upp')
+
+#Colon
+#spman(col='colon_death')
+spman(col='colon_drate')
+spman(col='colon_d_low')
+spman(col='colon_d_upp')
+
+#All
+#spman(col='all_death')
+spman(col='all_drate')
+spman(col='all_d_low')
+spman(col='all_d_upp')
+
+##CANCER INCIDENCE FROM NCDHHS
+
+#Colon
+#spman(col='colon_case')
+spman(col='colon_inc_rate')
+spman(col='colon_inc_low')
+spman(col='colon_inc_upp')
+
+#Lung
+#spman(col='lung_case')
+spman(col='lung_inc_rate')
+spman(col='lung_inc_low')
+spman(col='lung_inc_upp')
+
+#Skin
+spman(col='skin_case')
+spman(col='skin_inc_rate')
+spman(col='skin_inc_low')
+spman(col='skin_inc_upp')
+
+#Breast
+#spman(col='breast_case')
+#spman(col='breast_inc_rate')
+#spman(col='breast_inc_low')
+#spman(col='breast_inc_upp')
+
+#Cervix
+spman(col='cervix_case')
+spman(col='cervix_inc_rate')
+spman(col='cervix_inc_low')
+spman(col='cervix_inc_upp')
+
+#Prostate
+#spman(col='pros_case')
+spman(col='pros_inc_rate')
+#spman(col='pros_inc_low')
+spman(col='pros_inc_upp')
+
+#All
+#spman(col='all_case')
+spman(col='all_inc_rate')
+#spman(col='all_inc_low')
+spman(col='all_inc_upp')
+
+
+# Export cvi_cancer_no_nan to an Excel file
+cvi_cancer_no_nan = cvi_cancer.dropna()
+cvi_cancer_no_nan.to_excel("CVI_Cancer_nonan.xlsx", index=False)
+
+#Multivariate Analysis
+
+import statsmodels.api as sm
+
+identification_data = cvi_cancer['County']
+print(identification_data)
+non_numeric_columns = cvi_cancer.select_dtypes(exclude=['number'])
+print(non_numeric_columns.columns)
+
+X = sm.add_constant(cvi_cancer_no_nan.drop(columns=['Cancer','County','lung_death','lung_drate','lung_d_low', 'lung_d_upp', 
+                                                    'breast_death','breast_drate','breast_d_low', 'breast_d_upp',
+                                                    'pros_death','pros_drate','pros_d_low', 'pros_d_upp',
+                                                    'colon_death','colon_drate','colon_d_low', 'colon_d_upp',
+                                                    'all_death','all_drate','all_d_low', 'all_d_upp',
+                                                    'colon_case','colon_inc_rate','colon_inc_low','colon_inc_upp',
+                                                    'lung_case','lung_inc_rate','lung_inc_low','lung_inc_upp',
+                                                    'skin_case','skin_inc_rate','skin_inc_low','skin_inc_upp',
+                                                    'breast_case','breast_inc_rate','breast_inc_low','breast_inc_upp',
+                                                    'cervix_case','cervix_inc_rate','cervix_inc_low','cervix_inc_upp',
+                                                    'pros_case','pros_inc_rate','pros_inc_low','pros_inc_upp',
+                                                    'all_case','all_inc_rate','all_inc_low','all_inc_upp']))
+model = sm.OLS(cvi_cancer_no_nan['Cancer'], X).fit()
+print(model.summary())
+
+
+#Multicollinearity --- 
+sorted_coefficients = (model.params).sort_values(ascending=False)
+print(sorted_coefficients)
+
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+def calculate_vif(data_frame):
+    X = sm.add_constant(data_frame)
+    vif_data = pd.DataFrame()
+    vif_data["Variable"] = X.columns
+    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+
+    return vif_data
+
+X = sm.add_constant(cvi_cancer_no_nan.drop(columns=['Cancer','County','lung_death','lung_drate','lung_d_low', 'lung_d_upp', 
+                                                    'breast_death','breast_drate','breast_d_low', 'breast_d_upp',
+                                                    'pros_death','pros_drate','pros_d_low', 'pros_d_upp',
+                                                    'colon_death','colon_drate','colon_d_low', 'colon_d_upp',
+                                                    'all_death','all_drate','all_d_low', 'all_d_upp',
+                                                    'colon_case','colon_inc_rate','colon_inc_low','colon_inc_upp',
+                                                    'lung_case','lung_inc_rate','lung_inc_low','lung_inc_upp',
+                                                    'skin_case','skin_inc_rate','skin_inc_low','skin_inc_upp',
+                                                    'breast_case','breast_inc_rate','breast_inc_low','breast_inc_upp',
+                                                    'cervix_case','cervix_inc_rate','cervix_inc_low','cervix_inc_upp',
+                                                    'pros_case','pros_inc_rate','pros_inc_low','pros_inc_upp',
+                                                    'all_case','all_inc_rate','all_inc_low','all_inc_upp']))
+
+vif_results = calculate_vif(X)
+print(vif_results)
