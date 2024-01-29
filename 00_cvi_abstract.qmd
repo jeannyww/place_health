@@ -10,6 +10,8 @@ format:
 jupyter: python3
 ---
 
+# CVI and EMPOWER in North Carolina
+
 ## Cleaning data for analysis  ✨
 ```{python}
 #Loading the data 
@@ -118,7 +120,7 @@ def topn(indat, n, colname):
     return(p)
 
 topn(nc_2022, 10, "CVI_overall_score")
-topn(nc_2022, 10, "Low_Income")
+# topn(nc_2022, 10, "Low_Income")
 topn(nc_2022, 10, "CVI_baseline_score")
 
 topn(nc_2022, 10, "Baseline_Health")
@@ -133,7 +135,9 @@ topn(nc_2022, 10, "ClimateChange_ExtremeEvents")
 topn(nc_2022, 10, "Medicare_DME_per100")
 topn(nc_2022, 10, "ResidentialEnergyExpenditureschange")
 
+
 ```
+
 ## Running Rank Correlations
 ```{python}
 
@@ -142,6 +146,10 @@ import numpy as np
 import scipy.stats
 
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['CVI_CC_score'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['CC_EE_Storms'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['CC_EE_Precipitation'], nc_2022['Medicare_DME_per100'])
+scipy.stats.spearmanr(nc_2022['CC_EE_Flooding'], nc_2022['Medicare_DME_per100'])
 scipy.stats.spearmanr(nc_2022['ResidentialEnergyExpenditureschange'], nc_2022['Medicare_DME_per100'])
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_Health'])
 scipy.stats.spearmanr(nc_2022['CVI_overall_score'], nc_2022['Baseline_SocialEconomic'])
