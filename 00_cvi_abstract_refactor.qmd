@@ -1,0 +1,412 @@
+---
+title: CVI and EMPOWER in North Carolina
+author: Jeanny Wang
+date: 12-01-2024
+format:  
+    html:
+        code-overflow: wrap
+        code-tools: true
+        code-fold: true
+jupyter: python3
+---
+
+# CVI and EMPOWER in North Carolina
+https://class.ece.uw.edu/500/2012aut-e/10-11-12%20Pres.pdf\
+https://www.eia.gov/outlooks/steo/data.php 
+## Cleaning data for analysis  ✨
+```{python}
+# Loading the data
+
+import pandas as pd
+import numpy as np
+
+# from plotnine import *  #ggplot
+import os
+import sys
+
+ddict = {}  # dictionary to store the data
+
+# Storing all north carolina empower data from 2016-2022 into a data dictionary for retrieval 
+for year in range(2016, 2023):  # years 2016 through 2022 inclusive
+    # reading in data
+    print(year)
+    file_path = f"./EMPOWERdat/{year}_HHSemPOWERMapHistoricalDataset.xlsx"
+    ddict[year] = pd.read_excel(file_path, sheet_name="County")
+    print(ddict[year]["State"].unique())
+    print(ddict[year].columns)
+    # Restricting to North Carolina==37
+    ddict[year]=ddict[year].loc[ddict[year]["State_FIPS_Code"] == 37].copy()
+    # Verifying that the state is only North Carolina
+    print(ddict[year]["State"].unique())
+    # Creating New variable for mean number of medicare beneficiaries in year accross Jan-Dec
+    ddict[year][f"Medicare_Benes_{year}"]=ddict[year].filter(regex="Medicare_Benes$", axis=1).mean(axis=1).copy()
+    print(ddict[year][f"Medicare_Benes_{year}"].describe())
+    # Creating new variable for mean number of medicare beneficiaries with e-DME claim in year accross Jan-Dec
+    ddict[year][f"Medicare_DME_{year}"]=ddict[year].filter(regex="Power_Dependent_Devices_DME$", axis=1).mean(axis=1).copy()
+    print(ddict[year][f"Medicare_DME_{year}"])
+    # Creating a new variable for DME use per 100 medicare beneficiaries
+    ddict[year][f"Medicare_DMEper100_{year}"]=100*ddict[year][f"Medicare_DME_{year}"]/ddict[year][f"Medicare_Benes_{year}"]
+    print(ddict[year][f"Medicare_DMEper100_{year}"].describe())
+
+```
+
+
+#  Reading and combining the CVI data
+```{python}
+
+# Now getting the TOX PI SCORES dataset
+# https://github.com/ToxPi/toxpiR/tree/main
+# https://github.com/wachiuphd/CVI
+# Getting the baseline combined
+cvi_bl = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb-baseline.csv")
+cvi_bl.columns = cvi_bl.columns.str.replace("[.# ]", "_", regex=True)
+cvi_bl.columns = cvi_bl.columns.str.replace("ToxPi_Score", "CVI_baseline_score")
+# Getting Climate combined
+cvi_cc = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb-climate.csv")
+cvi_cc.columns = cvi_cc.columns.str.replace("[.# ]", "_", regex=True)
+cvi_cc.columns = cvi_cc.columns.str.replace("ToxPi_Score", "CVI_CC_score")
+cvi_cc.columns
+# CVI for just the extreme events
+cvi_extreme_events = pd.read_csv( "./CVI/CVI-county-pct/CVI-county-pct-cat-CC-Extreme Events.csv" )
+cvi_extreme_events.columns = cvi_extreme_events.columns.str.replace( "[.# ]", "_", regex=True )
+cvi_extreme_events.columns = cvi_extreme_events.columns.str.replace( "ToxPi_Score", "CC_EE_Score" )
+cvi_extreme_events.columns
+# Overall CVI for everything combined
+cvi_all = pd.read_csv("./CVI/CVI-county-pct/CVI-county-pct-comb.csv")
+cvi_all.columns = cvi_all.columns.str.replace("[.# ]", "_", regex=True)
+cvi_all.columns = cvi_all.columns.str.replace("ToxPi_Score", "CVI_overall_score")
+cvi_all.columns
+# Loading in additional indicators & cleaning up the column names
+cvi_inds = pd.read_csv("./CVI/CVI-county-pct/CVI-county_data_pct.csv")
+cvi_inds.columns = cvi_inds.columns.str.replace("[.# ]", "", regex=True)
+cvi_inds.columns = cvi_inds.columns.str.replace("[()-,%-]", "", regex=True)
+
+# Merging CVI data
+cvi_merge=pd.merge(cvi_bl, cvi_cc, on=["FIPS", "row_", "Name", "Source"])
+cvi_merge=pd.merge(cvi_merge, cvi_extreme_events, on=["FIPS", "row_", "Name", "Source"])
+cvi_merge=pd.merge(cvi_merge, cvi_all, on=["FIPS", "row_", "Name", "Source"])
+cvi_merge=pd.merge(cvi_merge, cvi_inds, on=["FIPS",  "Name", "Source"])
+print(cvi_merge.shape) 
+cvi_merge.columns 
+
+# Merging the CVI data and the EMPOWER data
+
+for year in range(2016, 2023):  # years 2016 through 2022 inclusive
+    # Merging the data
+    print(year)
+    # Renaming the column for easier merge
+    ddict[year] = ddict[year].rename(columns={"FIPS_Code": "FIPS"})
+    # Merging by selecting the EMPOWER summary columns for each year
+    cvi_merge = pd.merge(
+        cvi_merge,
+        ddict[year][
+            [
+                "FIPS",
+                f"Medicare_Benes_{year}",
+                f"Medicare_DME_{year}",
+                f"Medicare_DMEper100_{year}",
+            ]
+        ],
+        on="FIPS",
+        how="inner",
+    )
+
+
+print(cvi_merge.shape)
+print(cvi_merge.head)
+print(cvi_merge.columns)
+
+# Checking summary statistics for columns
+for col in cvi_merge.columns:
+    print(col)
+
+summary_stats = cvi_merge.filter(regex="Medicare_DMEper100_\d{4}$", axis=1).describe()
+print(summary_stats)
+
+# Export cvi_merge to an Excel file
+cvi_merge.to_excel("CVI_Empower_2016-2022.xlsx", index=False)
+
+```
+
+## Rudimentary analysis for ICPE abstract 
+```{python}
+
+def topn(indat, n, colname):
+    print(indat[['Name', f'{colname}']].sort_values(by=[colname], ascending=False).head(n))
+
+topn(cvi_merge, 10, "CVI_overall_score")
+# topn(cvi_merge, 10, "Low_Income")
+topn(cvi_merge, 10, "CVI_baseline_score")
+
+topn(cvi_merge, 10, "Baseline_Health_x")
+topn(cvi_merge, 10, "Baseline_SocialEconomic_x")
+topn(cvi_merge, 10, "Baseline_Infrastructure_x")
+topn(cvi_merge, 10, "Baseline_Environment_x")
+
+topn(cvi_merge, 10, "CVI_CC_score")
+topn(cvi_merge, 10, "ClimateChange_Health_x")
+topn(cvi_merge, 10, "ClimateChange_SocialEconomic_x")
+topn(cvi_merge, 10, "ClimateChange_ExtremeEvents_x")
+
+topn(cvi_merge, 10, "Medicare_DMEper100_2022")
+topn(cvi_merge, 10, "ResidentialEnergyExpenditureschange")
+
+
+```
+
+## Running Rank Correlations
+```{python}
+
+# Libraries for running rank correlations
+import scipy.stats
+
+scipy.stats.spearmanr(cvi_merge['CVI_overall_score'], cvi_merge['Medicare_DMEper100_2022'])
+
+def getspearmanr(indat, col1, col2):
+    return scipy.stats.spearmanr(indat[f"{col1}"], indat[f"{col2}"])
+
+getspearmanr(cvi_merge, 'CVI_overall_score', 'Medicare_DMEper100_2022')
+
+# Running rank correlations for all years
+for year in range(2016, 2023):  # years 2016 through 2022 inclusive
+    print(year)
+    print(getspearmanr(cvi_merge, 'CVI_overall_score', f'Medicare_DMEper100_{year}'))
+
+```
+
+
+### List of Variables 
+row_
+Name
+FIPS
+Source
+CVI_baseline_score
+Baseline_Health_x
+Baseline_SocialEconomic_x
+Baseline_Infrastructure_x
+cccccccccccccccc
+CVI_CC_score
+ClimateChange_Health_x
+ClimateChange_SocialEconomic_x
+ClimateChange_ExtremeEvents_x
+CC_EE_Score
+Temperature
+Droughts
+Wildfires
+Precipitation
+Flooding
+Storms
+CVI_overall_score
+Baseline_Health_y
+Baseline_SocialEconomic_y
+Baseline_Infrastructure_y
+Baseline_Environment_y
+ClimateChange_Health_y
+ClimateChange_SocialEconomic_y
+ClimateChange_ExtremeEvents_y
+row
+LifeExpectancy
+SelfReportedPhysicalHealth
+SelfReportedMentalHealth
+DrugOverdoseDeathsper100000People
+AlcoholAbuse
+SuicideRates
+CurrentDiabetes
+CurrentAdultAsthma
+Stroke
+COPD
+CHD
+Cancer
+HighBloodPressure
+CholesterolScreening
+RoutineDoctorVisit
+Colonoscopy
+Mammogram
+OlderMenPreventiveScreening
+OlderWomenPreventiveScreening
+DentalExams
+COVID19Deaths
+HepatitisA
+HepatitisB
+HIV
+Chlamydia
+Gonorrhea
+Syphilis
+InfantMortality
+Lowbirthweight
+Pretermbirth
+ChildhoodAsthma
+Teenbirths
+ADHDPrevalence
+ADHDTreatment
+ChildMortality
+FreeorReducedPriceSchoolLunch
+ProximitytoNursingHomes
+NumberofHospitalBedsper10000people
+Covid19VaccinationRates
+MedicallyUnderservedAreas
+CurrentLackofHealthInsurance
+Proximitytohospitals
+BelowPoverty
+Unemployed
+LowIncome
+NoHighSchoolDiploma
+HomicideRate
+GunViolence
+ReligiousOrganizations
+CivicandSocialOrganizations
+Aged65orOlder
+Aged17orYounger
+CivilianwithaDisability
+SingleParentHouseholds
+FosterChildren
+Minority
+SpeaksEnglishLessthanWell
+UndocumentedPopulation
+HateCrimes
+PrisonPopulation
+Redlining
+HomelessPopulation
+VeteransPopulation
+MultiUnitStructures
+MobileHomes
+Crowding
+NoVehicle
+GroupQuarters
+HousingForeclosureRisk
+PercentofHousingUnitsBuiltBetween19401969asof20152019
+Delaycongestionpercapita/censustract
+Floodingrisktoroads
+Lanemilespercapita
+RoadQualityandMaintenance
+PublicTransitPerformance
+BridgeQualityandMaintenance
+Walkability
+Bikability
+ResidentialEnergyCostBurden
+Shareofenergyfromfossilfuels
+EVChargingStations
+ModifiedRetailFoodEnvironmentIndex
+FoodInsecurity
+AccesstoHealthyFoods
+IndoorPlumbing
+PercentofHouseholdwithnointernetaccess
+Percentofhouseholdwithsmartphonebutnootherdevice
+PercentofUnbankedHouseholds
+Paydaylendingrank
+HousingAffordabilityrenters
+HousingAffordabilityowners
+TaxBase:MedianRealEstateTaxesPaid
+VoterTurnout2020
+PublicLibraryLocations
+HUDPublicHousing
+AggregatefundingamountforHUDgrants
+Totalvehiclemilestraveledpercapita
+Passengervehiclemilestraveledpercapita
+Truckvehiclemilestraveledpercapita
+HeavyDutyVehiclevehiclemilestraveledpercapita
+ProximitytoPorts
+RailCrossings
+TrafficProximityandVolume
+NationalTransportationNoiseMap
+RiskScreeningEnvironmentalIndicatorsRSEI
+AirToxRespiratory
+AirToxNeurological
+AirToxLiver
+AirToxDevelopmental
+AirToxReproductive
+AirToxKidney
+AirToxImmunological
+AirToxThyroid
+AirToxTotalCancerRisk
+BlackCarbon
+Agriculturalpesticides
+LeadPaint:housingunitsbuiltbefore1960
+Leadindrinkingwaterviolations
+SuperfundSites
+Brownfields
+StreamToxicityRiskScreeningEnvironmentalIndicatorsRSEI
+Proximitytofacilitiesparticipatinginairmarkets
+NPLsites
+HazardousWasteManagementFacilitiesTSDFs
+HazardousWasteGenerator/Incinerators
+FacilitieswithEnforcementorViolation
+Landfills
+TSCAFacilities
+RiskManagementPlanFacilities
+ChemicalManufacturers
+MetalRecyclers
+ActiveOilandGasWells
+AnnualaveragePM25concentrations
+NO2concentration
+Ozoneconcentration
+ParksandGreenspace
+ImpermeableSurfaces
+ForestLandCover
+NativeAmericanLands
+Temperaturerelatedmortality
+Deathsfromclimatedisasters
+IncreasedPM25mortalityCVDages65
+IncreasedOzonemortalityallages
+Increaseinchildhoodasthmaincidence
+Aedesalbopictusdenguetransmissionincrease
+Aedesaegyptidenguetransmissionincrease
+Aedesaegyptizikatransmissionincrease
+FEMAHazardMitigationGrants
+Floodingrisktoproperties
+Wildfirerisktoproperties
+Propertytaxesexpectedtobelostby2045duetochronicinundation
+Costofclimatedisasters
+HighRiskJobsProductivityChange
+Yieldschange
+Outdoorworkersworkdaysatriskperyear
+ExpectedAnnualLossAgricultureValue
+ExpectedAnnualLossBuildingValue
+ExpectedAnnualLossPopulationEquivalence
+ResidentialEnergyExpenditureschange
+ShareofJobsinAgriculture
+Stateenergyrelatedcarbondioxideemissionsbyyear
+MethaneEmissions
+PropertyCrimeschange
+ViolentCrimeschange
+ColdWaveAnnualizedFrequency
+Dayswithmaximumtemperatureabove35C
+Dayswithmaximumtemperatureabove40C
+FrostDays
+Maximumofmaximumtemperatures
+Meantemperature
+UrbanHeatIslandExtremeHeatDays
+DroughtAnnualizedFrequency
+ConsecutiveDryDays
+WildfireAnnualizedFrequency
+SurfacePM25
+Snowfall
+StandardizedPrecipIndex
+TotalPrecipitation
+CoastalFloodingAnnualizedFrequency
+RiverineFloodingAnnualizedFrequency
+SeaLevelRise
+HurricaneAnnualizedFrequency
+TornadoAnnualizedFrequency
+WinterWeatherAnnualizedFrequency
+Medicare_Benes_2016
+Medicare_DME_2016
+Medicare_DMEper100_2016
+Medicare_Benes_2017
+Medicare_DME_2017
+Medicare_DMEper100_2017
+Medicare_Benes_2018
+Medicare_DME_2018
+Medicare_DMEper100_2018
+Medicare_Benes_2019
+Medicare_DME_2019
+Medicare_DMEper100_2019
+Medicare_Benes_2020
+Medicare_DME_2020
+Medicare_DMEper100_2020
+Medicare_Benes_2021
+Medicare_DME_2021
+Medicare_DMEper100_2021
+Medicare_Benes_2022
+Medicare_DME_2022
+Medicare_DMEper100_2022

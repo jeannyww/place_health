@@ -15,7 +15,7 @@ jupyter: python3
 ## Cleaning data for analysis  ✨
 ```{python}
 #Loading the data 
-
+    
 import pandas as pd
 import numpy as np
 from siuba import * 
