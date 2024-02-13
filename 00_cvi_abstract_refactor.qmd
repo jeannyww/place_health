@@ -129,27 +129,21 @@ cvi_merge.to_excel("CVI_Empower_2016-2022.xlsx", index=False)
 ```
 
 ## Rudimentary analysis for ICPE abstract 
-```{python}
 
+```{python}
+# printing out top 10 for DME per 100 medicare beneficiaries
 def topn(indat, n, colname):
     print(indat[['Name', f'{colname}']].sort_values(by=[colname], ascending=False).head(n))
+def bottomn(indat, n, colname):
+    print(indat[['Name', f'{colname}']].sort_values(by=[colname], ascending=True).head(n))
 
-topn(cvi_merge, 10, "CVI_overall_score")
-# topn(cvi_merge, 10, "Low_Income")
-topn(cvi_merge, 10, "CVI_baseline_score")
+for year in range(2016, 2023):  # years 2016 through 2022 inclusive
+    print(year)
+    topn(cvi_merge, 5, f"Medicare_DMEper100_{year}")
+    bottomn(cvi_merge, 5, f"Medicare_DMEper100_{year}")
 
-topn(cvi_merge, 10, "Baseline_Health_x")
-topn(cvi_merge, 10, "Baseline_SocialEconomic_x")
-topn(cvi_merge, 10, "Baseline_Infrastructure_x")
-topn(cvi_merge, 10, "Baseline_Environment_x")
-
-topn(cvi_merge, 10, "CVI_CC_score")
-topn(cvi_merge, 10, "ClimateChange_Health_x")
-topn(cvi_merge, 10, "ClimateChange_SocialEconomic_x")
-topn(cvi_merge, 10, "ClimateChange_ExtremeEvents_x")
-
-topn(cvi_merge, 10, "Medicare_DMEper100_2022")
-topn(cvi_merge, 10, "ResidentialEnergyExpenditureschange")
+# printing out summary statistics for DME and DME per 100 medicare beneficiaries
+print(cvi_merge.filter(regex="Medicare_DMEper100_\\d{4}$", axis=1).describe())
 
 
 ```
@@ -174,6 +168,31 @@ for year in range(2016, 2023):  # years 2016 through 2022 inclusive
 
 ```
 
+## Scrap test 
+```{python}
+
+def topn(indat, n, colname):
+    print(indat[['Name', f'{colname}']].sort_values(by=[colname], ascending=False).head(n))
+
+topn(cvi_merge, 10, "CVI_overall_score")
+# topn(cvi_merge, 10, "Low_Income")
+topn(cvi_merge, 10, "CVI_baseline_score")
+
+topn(cvi_merge, 10, "Baseline_Health_x")
+topn(cvi_merge, 10, "Baseline_SocialEconomic_x")
+topn(cvi_merge, 10, "Baseline_Infrastructure_x")
+topn(cvi_merge, 10, "Baseline_Environment_x")
+
+topn(cvi_merge, 10, "CVI_CC_score")
+topn(cvi_merge, 10, "ClimateChange_Health_x")
+topn(cvi_merge, 10, "ClimateChange_SocialEconomic_x")
+topn(cvi_merge, 10, "ClimateChange_ExtremeEvents_x")
+
+topn(cvi_merge, 10, "Medicare_DMEper100_2022")
+topn(cvi_merge, 10, "ResidentialEnergyExpenditureschange")
+
+
+```
 
 ### List of Variables 
 row_
