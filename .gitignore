@@ -1,6 +1,9 @@
 .vscode
-abstract_files
+data
 CVI/*
+doc/*
+out/*
+abstract_files
 !CVI/CVI-county-pct/
 *.gis.csv
 doc
@@ -14,4 +17,5 @@ writing
 *.html
 *.pdf
 *.docx
+*.pptx
 place_health.code-workspace
